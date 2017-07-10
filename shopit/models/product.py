@@ -167,6 +167,76 @@ class ProductManager(BaseProductManager, TranslatableManager):
         return self.get_queryset().filter_attributes(attributes)
 
 
+class AttributeQuerySet(TranslatableQuerySet):
+    def active(self):
+        return self.filter(active=True)
+
+@python_2_unicode_compatible
+class Attribute(TranslatableModel):
+    """
+    Used to define different types of attributes to be assigned on a Product
+    variant. Eg. For a t-shirt attributes could be size, color, pattern etc.
+    """
+    TEMPLATES = ATTRIBUTE_TEMPLATES
+
+    translations = TranslatedFields(
+        name=models.CharField(_('Name'), max_length=128),
+    )
+
+    code = models.SlugField(_('Code'), max_length=128, unique=True, help_text=_(
+        "An identifier that's used to access this attribute. Must be unique."))
+
+    template = models.CharField(_('Template'), max_length=255, blank=True, null=True, choices=TEMPLATES, help_text=_(
+        'You can specify a template for rendering this attribute or leave it empty for the default (dropdown) look.'))
+
+    nullable = models.BooleanField(_('Nullable'), default=False, help_text=_(
+        'Check this if you want to make "empty" an option for this Attribute.'))
+
+    active = models.BooleanField(_('Active'), default=True, help_text=_('Is this attribute publicly visible.'))
+    created_at = models.DateTimeField(_('Created at'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Updated at'), auto_now=True)
+    order = models.PositiveIntegerField(_('Sort'), default=0)
+
+    objects = AttributeQuerySet.as_manager()
+
+    class Meta:
+        db_table = 'shopit_attributes'
+        verbose_name = _('Attribute')
+        verbose_name_plural = _('Attributes')
+        ordering = ['order']
+
+    def __str__(self):
+        name = self.safe_translation_getter('name', any_language=True)
+        if Attribute.objects.translated(name=name).count() > 1:
+            return '%s (%s)' % (name, self.code)
+        return name
+
+    def get_choices(self):
+        """
+        Returns choices adding in an empty one if attribute is nullable.
+        """
+        choices = getattr(self, '_choices', None)
+        if choices is None:
+            choices = list(self.choices.all())
+            if self.nullable:
+                choices.insert(0, AttributeChoice(attribute=self, value=''))
+            setattr(self, '_choices', choices)
+        return choices
+
+    @property
+    def key(self):
+        return self.code.replace('-', '_')
+
+    @cached_property
+    def as_dict(self):
+        return {
+            'name': self.safe_translation_getter('name', any_language=True),
+            'code': self.code,
+            'template': self.template,
+            'nullable': self.nullable,
+            'order': self.order,
+        }
+
 @python_2_unicode_compatible
 class Product(BaseProduct, TranslatableModel):
     """
@@ -237,7 +307,7 @@ class Product(BaseProduct, TranslatableModel):
 
     # Group
     available_attributes = models.ManyToManyField(
-        'Attribute', blank=True, related_name='products_available_attributes', verbose_name=_('Attributes'),
+        Attribute, blank=True, related_name='products_available_attributes', verbose_name=_('Attributes'),
         help_text=_('Select attributes that can be used in a Variant for this product.'))
 
     # Variant
@@ -245,7 +315,7 @@ class Product(BaseProduct, TranslatableModel):
         'self', models.CASCADE, blank=True, null=True, related_name='variants', verbose_name=_('Group'),
         help_text=_('Select a Group product for this variation.'))
 
-    attributes = models.ManyToManyField('Attribute', through='AttributeValue', verbose_name=_('Attributes'))
+    attributes = models.ManyToManyField(Attribute, through='AttributeValue', verbose_name=_('Attributes'))
     published = models.DateTimeField(_('Published'), default=timezone.now)
 
     quantity = models.IntegerField(_('Quantity'), blank=True, null=True, help_text=_(
@@ -858,78 +928,6 @@ class Product(BaseProduct, TranslatableModel):
             raise ValidationError(EM['varinat_group_variant'])
         if self.variants.exists():
             raise ValidationError(EM['not_group_has_variants'])
-
-
-class AttributeQuerySet(TranslatableQuerySet):
-    def active(self):
-        return self.filter(active=True)
-
-
-@python_2_unicode_compatible
-class Attribute(TranslatableModel):
-    """
-    Used to define different types of attributes to be assigned on a Product
-    variant. Eg. For a t-shirt attributes could be size, color, pattern etc.
-    """
-    TEMPLATES = ATTRIBUTE_TEMPLATES
-
-    translations = TranslatedFields(
-        name=models.CharField(_('Name'), max_length=128),
-    )
-
-    code = models.SlugField(_('Code'), max_length=128, unique=True, help_text=_(
-        "An identifier that's used to access this attribute. Must be unique."))
-
-    template = models.CharField(_('Template'), max_length=255, blank=True, null=True, choices=TEMPLATES, help_text=_(
-        'You can specify a template for rendering this attribute or leave it empty for the default (dropdown) look.'))
-
-    nullable = models.BooleanField(_('Nullable'), default=False, help_text=_(
-        'Check this if you want to make "empty" an option for this Attribute.'))
-
-    active = models.BooleanField(_('Active'), default=True, help_text=_('Is this attribute publicly visible.'))
-    created_at = models.DateTimeField(_('Created at'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('Updated at'), auto_now=True)
-    order = models.PositiveIntegerField(_('Sort'), default=0)
-
-    objects = AttributeQuerySet.as_manager()
-
-    class Meta:
-        db_table = 'shopit_attributes'
-        verbose_name = _('Attribute')
-        verbose_name_plural = _('Attributes')
-        ordering = ['order']
-
-    def __str__(self):
-        name = self.safe_translation_getter('name', any_language=True)
-        if Attribute.objects.translated(name=name).count() > 1:
-            return '%s (%s)' % (name, self.code)
-        return name
-
-    def get_choices(self):
-        """
-        Returns choices adding in an empty one if attribute is nullable.
-        """
-        choices = getattr(self, '_choices', None)
-        if choices is None:
-            choices = list(self.choices.all())
-            if self.nullable:
-                choices.insert(0, AttributeChoice(attribute=self, value=''))
-            setattr(self, '_choices', choices)
-        return choices
-
-    @property
-    def key(self):
-        return self.code.replace('-', '_')
-
-    @cached_property
-    def as_dict(self):
-        return {
-            'name': self.safe_translation_getter('name', any_language=True),
-            'code': self.code,
-            'template': self.template,
-            'nullable': self.nullable,
-            'order': self.order,
-        }
 
 
 @python_2_unicode_compatible
