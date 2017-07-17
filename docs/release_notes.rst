@@ -8,7 +8,11 @@ Release notes for **Shopit**.
 0.2.3
 =====
 
-* Handle NoReverseMatch for ``add_to_cart_url`` in a Product serializer.
+* Optimize ``get_flags`` templatetag when filtering by products.
+* Add ``content`` field as ``PlaceholderField`` to categorization models.
+* Add ``never_cache`` decorators to AccountDetail and AccountOrder views.
+* Force setting priority on address form, order existant addresses by priority.
+* Update ``query_transform`` templatetag to remove empty values.
 * Add missing ``FlagModelForm`` to ``FlagAdmin``.
 * Fix Flag unicode error in ``__str__``.
 * Re-work the reviews, making them non-translatable. Not compatible with the old reviews, make sure to save them
@@ -22,11 +26,18 @@ Release notes for **Shopit**.
 * Add and track num uses on a *DiscountCode*, alter the admin to display new values.
 * Enable frontend editing of categorization and product models.
 * Fix *AccountOrderDetail* view not returning the correct order.
+* Handle NoReverseMatch for ``add_to_cart_url`` in a Product serializer.
 
 .. attention::
 
     Requires ``python manage.py migrate shopit`` to add/remove fields on a Review model,
-    as well as add ``phone_number`` field on Customer model and ``max_uses``, ``num_uses`` on *DiscountCode*.
+    as well as add ``phone_number`` field on Customer model, ``content`` field on Categorization models
+    and ``max_uses``, ``num_uses`` on *DiscountCode*.
+
+.. note::
+
+    If migrating with categorization models already added. You'll need to save each models again for the
+    ``content`` PlaceholderField to appear.
 
 0.2.2
 =====
